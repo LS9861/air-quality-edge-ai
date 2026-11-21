@@ -22,6 +22,14 @@
 #define PIN_LED_MODERATE 5
 #define PIN_LED_POOR 6
 
+// ---------- OLED Display (SSD1306, I2C) ----------
+// 0.96" module is typically 128x64. Change OLED_HEIGHT to 32 for 128x32 boards.
+#define PIN_OLED_SDA 8
+#define PIN_OLED_SCL 9
+#define OLED_WIDTH 128
+#define OLED_HEIGHT 64
+#define OLED_ADDR 0x3C // try 0x3D if the screen stays blank
+
 // ---------- Sampling Parameters ----------
 #define SERIAL_BAUD 115200
 #define PMS_BAUD 9600

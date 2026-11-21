@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "config.h"
+#include "display.h"
 
 // Declarations from other .cpp files
 bool pms5003_poll();
@@ -31,6 +32,14 @@ void setup()
     // MQ-135 + DHT22
     sensors_init();
 
+    // Status LEDs
+    pinMode(PIN_LED_GOOD, OUTPUT);
+    pinMode(PIN_LED_MODERATE, OUTPUT);
+    pinMode(PIN_LED_POOR, OUTPUT);
+
+    // OLED display
+    display_init();
+
         // CSV header
     Serial.println(CSV_HEADER);
 }
@@ -50,7 +59,14 @@ void loop()
         float temp, hum;
         sensors_read_dht(temp, hum);
 
-        // 3. Print full raw CSV line (must match CSV_HEADER order)
+        // 3. Update OLED + status LEDs (interim heuristic until ML)
+        AirStatus status = display_compute_status(mq135, pms_pm25_atm, pms_n03);
+        display_update(temp, hum, mq135, pms_pm25_atm, pms_pm10_atm, pms_n03, status);
+        digitalWrite(PIN_LED_GOOD, status == AIR_GOOD ? HIGH : LOW);
+        digitalWrite(PIN_LED_MODERATE, status == AIR_MODERATE ? HIGH : LOW);
+        digitalWrite(PIN_LED_POOR, status == AIR_POOR ? HIGH : LOW);
+
+        // 4. Print full raw CSV line (must match CSV_HEADER order)
         Serial.print(millis());          // timestamp_ms
         Serial.print(','); Serial.print(pms_pm1_cf1);
         Serial.print(','); Serial.print(pms_pm25_cf1);
@@ -68,7 +84,7 @@ void loop()
         Serial.print(','); Serial.print(temp, 2);
         Serial.print(','); Serial.println(hum, 2);
     }
-        // 4. Periodic PMS5003 diagnostic (every 10 s).
+        // 5. Periodic PMS5003 diagnostic (every 10 s).
     // Prefixed with '#' so the logger ignores these lines.
     if (millis() - lastDiag >= 10000UL)
     {
