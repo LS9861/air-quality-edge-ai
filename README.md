@@ -1,4 +1,4 @@
-# Air Quality Edge AI
+﻿# Air Quality Edge AI
 
 An ESP32-C3-based environmental monitoring system that streams raw sensor data
 and (eventually) runs an on-device ML classifier to detect air quality states:
@@ -14,7 +14,7 @@ and (eventually) runs an on-device ML classifier to detect air quality states:
 | Component | Interface | ESP32-C3 pin | Notes                                   |
 |-----------|-----------|--------------|-----------------------------------------|
 | PMS5003   | UART      | RX `GPIO20`, TX `GPIO21` | 9600 baud, 32-byte frames |
-| MQ-135    | Analog ADC| `GPIO0` (ADC1_CH0)       | Use a voltage divider (5V → ≤3.3V) |
+| MQ-135    | Analog ADC| `GPIO0` (ADC1_CH0)       | Use a voltage divider (5V -> <=3.3V) |
 | DHT22     | Digital   | `GPIO10`                 | Temp / humidity |
 | Status LEDs | GPIO    | `GPIO4/5/6`              | GOOD / MODERATE / POOR (Phase 6) |
 
@@ -30,7 +30,7 @@ firmware/            PlatformIO project (C++)
   src/pms5003.cpp    PMS5003 UART parser (non-blocking state machine)
   models/            Exported model headers (.gitkeep placeholder)
 
-logger/              Host-side serial → CSV recorder
+logger/              Host-side serial -> CSV recorder
   logger.py          Prompts for scene label, writes data/raw/<scene>/
 
 data/
@@ -56,7 +56,7 @@ mq135_raw,temp_c,hum_pct
 
 > **Note:** The PMS5003 used is a clone whose *mass* fields stay zero; the
 > *particle count* fields (`n03`..`n100`) carry the real signal. All values are
-> recorded raw — the ML stage decides which features to use. DHT read failures
+> recorded raw - the ML stage decides which features to use. DHT read failures
 > are written as `-999.0`.
 
 ## Quick start
