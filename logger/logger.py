@@ -57,10 +57,15 @@ def main():
         f.flush()
         print(f"Saving to {filename} (Ctrl+C to stop)")
 
+        # Byte buffer: collects raw fragments and lets us reassemble complete
+        # lines that the serial port may deliver split across multiple reads.
+        # (serial.readline() can return partial lines, which used to be dropped.)
+        buf = b""
+
         try:
             while True:
                 try:
-                    line = ser.readline().decode("utf-8", errors="ignore").strip()
+                    chunk = ser.read(ser.in_waiting or 1)
                 except (serial.SerialException, OSError) as e:
                     print(f"\n[serial error] {e} - reconnecting in 3s...")
                     time.sleep(3)
@@ -70,17 +75,30 @@ def main():
                         pass
                     ser = serial.Serial(port, BAUD, timeout=1)
                     time.sleep(2)
+                    buf = b""  # discard any partial line from the old session
                     continue
 
-                if not line or line.startswith("#"):
-                    continue
-                cols = line.split(",")
-                if line == EXPECTED_HEADER or len(cols) != EXPECTED_COLS:
+                if not chunk:
                     continue
 
-                writer.writerow(cols)
-                f.flush()
-                print(line)
+                buf += chunk
+                # Split into complete lines (ending with \n) + a trailing tail.
+                *complete, buf = buf.split(b"\n")
+
+                for raw in complete:
+                    line = raw.decode("utf-8", errors="ignore").strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if line == EXPECTED_HEADER:
+                        continue
+                    cols = line.split(",")
+                    if len(cols) != EXPECTED_COLS:
+                        print(f"[skip malformed] {line!r}")
+                        continue
+
+                    writer.writerow(cols)
+                    f.flush()
+                    print(line)
         except KeyboardInterrupt:
             print("\nStopped.")
 
