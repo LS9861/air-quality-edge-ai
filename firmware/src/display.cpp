@@ -92,26 +92,29 @@ void display_update(float temp_c, float hum_pct, int mq135_raw,
         oled.print("%");
     }
 
-    // ---- BLUE area (y >= 16): air quality status (double height) ----
-    oled.setTextSize(2);
-    oled.setCursor(0, 16);
-    oled.print("AQ:");
+    // ---- BLUE area (y >= 16): uniform size-1 lines, fixed spacing ----
+    // Uniform size 1 guarantees no overlap regardless of status word length.
+    oled.setCursor(0, 18);
+    oled.print("AQ: ");
     oled.print(display_status_text(status));
 
-    // Line 3: PM values
-    oled.setTextSize(1);
-    oled.setCursor(0, 36);
+    oled.setCursor(0, 30);
     oled.print("PM2.5:");
     oled.print(pm25_atm);
     oled.print(" PM10:");
     oled.print(pm10_atm);
 
-    // Line 4: particle count + MQ raw
-    oled.setCursor(0, 48);
+    oled.setCursor(0, 42);
     oled.print("n0.3:");
     oled.print(n03);
     oled.print(" MQ:");
     oled.print(mq135_raw);
+
+    // 4th line: uptime (s) as a liveness indicator.
+    oled.setCursor(0, 54);
+    oled.print("Up:");
+    oled.print(millis() / 1000);
+    oled.print("s");
 
     oled.display();
 }
