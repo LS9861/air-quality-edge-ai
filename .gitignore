@@ -36,6 +36,9 @@ ml/**/*.tflite
 firmware/models/*
 !firmware/models/.gitkeep
 
+# ---- Firmware secrets (WiFi creds, API keys) ----
+firmware/include/secrets.h
+
 # ---- Editor / OS ----
 .vscode/
 .idea/

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "config.h"
 #include "display.h"
+#include "net.h"
 
 // Declarations from other .cpp files
 bool pms5003_poll();
@@ -18,6 +19,13 @@ extern uint16_t pms_n03, pms_n05, pms_n10, pms_n25, pms_n50, pms_n100;
 
 unsigned long lastRead = 0;
 unsigned long lastDiag = 0;
+unsigned long lastDisplay = 0;
+
+// Cached latest readings so the display can refresh (clock) faster than the
+// 2 s sensor cadence without re-reading sensors.
+static int s_mq135 = 0;
+static float s_temp = DHT_ERROR_VALUE;
+static float s_hum = 0.0f;
 
 void setup()
 {
@@ -37,8 +45,11 @@ void setup()
     pinMode(PIN_LED_MODERATE, OUTPUT);
     pinMode(PIN_LED_POOR, OUTPUT);
 
-    // OLED display
+        // OLED display
     display_init();
+
+    // Network: WiFi + SNTP + weather (non-blocking, dev firmware only)
+    net_init();
 
         // CSV header
     Serial.println(CSV_HEADER);
@@ -49,24 +60,19 @@ void loop()
         // 1. Poll PMS5003 continuously (non-blocking)
     pms5003_poll();
 
-    // 2. Read MQ-135 and DHT22 at fixed interval
+    // 2. Service the network (WiFi / SNTP / weather) - non-blocking
+    net_update();
+
+    // 3. Read MQ-135 and DHT22 at fixed interval
     if (millis() - lastRead >= READ_INTERVAL_MS)
     {
                 lastRead = millis();
 
-        int mq135 = sensors_read_mq135();
+        s_mq135 = sensors_read_mq135();
 
-        float temp, hum;
-        sensors_read_dht(temp, hum);
+        sensors_read_dht(s_temp, s_hum);
 
-        // 3. Update OLED + status LEDs (interim heuristic until ML)
-        AirStatus status = display_compute_status(mq135, pms_pm25_atm, pms_n03);
-        display_update(temp, hum, mq135, pms_pm25_atm, pms_pm10_atm, pms_n03, status);
-        digitalWrite(PIN_LED_GOOD, status == AIR_GOOD ? HIGH : LOW);
-        digitalWrite(PIN_LED_MODERATE, status == AIR_MODERATE ? HIGH : LOW);
-        digitalWrite(PIN_LED_POOR, status == AIR_POOR ? HIGH : LOW);
-
-        // 4. Print full raw CSV line (must match CSV_HEADER order)
+        // Print full raw CSV line (must match CSV_HEADER order)
         Serial.print(millis());          // timestamp_ms
         Serial.print(','); Serial.print(pms_pm1_cf1);
         Serial.print(','); Serial.print(pms_pm25_cf1);
@@ -80,10 +86,43 @@ void loop()
         Serial.print(','); Serial.print(pms_n25);
         Serial.print(','); Serial.print(pms_n50);
         Serial.print(','); Serial.print(pms_n100);
-        Serial.print(','); Serial.print(mq135);
-        Serial.print(','); Serial.print(temp, 2);
-        Serial.print(','); Serial.println(hum, 2);
+        Serial.print(','); Serial.print(s_mq135);
+        Serial.print(','); Serial.print(s_temp, 2);
+        Serial.print(','); Serial.println(s_hum, 2);
     }
+
+    // 4. Refresh OLED + status LEDs (~1 s, so the clock stays live)
+    if (millis() - lastDisplay >= NET_UPDATE_INTERVAL_MS)
+    {
+        lastDisplay = millis();
+
+        AirStatus status = display_compute_status(s_mq135, pms_pm25_atm, pms_n03);
+
+        DisplayEnv env;
+        NetTime nt = net_get_time();
+        if (nt.valid)
+        {
+            env.time_valid = true;
+            env.weekday = net_weekday_short(nt.weekday);
+            env.day = nt.day;
+            env.month = nt.month;
+            env.hour = nt.hour;
+            env.minute = nt.minute;
+        }
+        NetWeather wx = net_get_weather();
+        if (wx.valid)
+        {
+            env.weather_valid = true;
+            env.weather_temp = wx.temp_c;
+            env.condition = wx.condition.c_str();
+        }
+        display_update_env(s_temp, s_hum, status, env);
+
+        digitalWrite(PIN_LED_GOOD, status == AIR_GOOD ? HIGH : LOW);
+        digitalWrite(PIN_LED_MODERATE, status == AIR_MODERATE ? HIGH : LOW);
+        digitalWrite(PIN_LED_POOR, status == AIR_POOR ? HIGH : LOW);
+    }
+
         // 5. Periodic PMS5003 diagnostic (every 10 s).
     // Prefixed with '#' so the logger ignores these lines.
     if (millis() - lastDiag >= 10000UL)
@@ -103,4 +142,5 @@ void loop()
         Serial.println();
 }
 }
+
 

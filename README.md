@@ -30,7 +30,10 @@ firmware/            PlatformIO project (C++)
   src/sensors.cpp    MQ-135 + DHT22 drivers
   src/pms5003.cpp    PMS5003 UART parser (non-blocking state machine)
   src/display.cpp    SSD1306 OLED rendering + interim AQ status heuristic
+  src/net.cpp        WiFi + SNTP (Stuttgart) + OpenWeatherMap (dev firmware only)
   src/i2c_scan.cpp   Boot-time I2C bus scanner (diagnostic)
+  include/secrets.example.h  Template for WiFi creds + OWM key (copy to secrets.h)
+  partitions.csv     Custom partition table (~3 MB app slot for ML headroom)
   models/            Exported model headers (.gitkeep placeholder)
 
 logger/              Host-side serial -> CSV recorder
@@ -66,14 +69,48 @@ mq135_raw,temp_c,hum_pct
 ## OLED display
 
 A 0.96" SSD1306 (128x64, I2C at `0x3C`) shows live readings. The module is a
-**dual-color** panel: the top 16 px band is yellow, the rest is blue. Layout:
+**dual-color** panel: the top 16 px band is yellow, the rest is blue.
 
-- **Yellow band** (top): temperature + humidity
-- **Blue area**: air-quality status (large), PM2.5/PM10, particle count, MQ-135
+The connected weather-station layout (`display_update_env()`, used by the dev
+firmware):
 
-An interim rule-based status (GOOD/MODERATE/POOR) drives the display and the
-status LEDs until the ML classifier (Phase 6) is deployed. If no OLED is
-attached, the firmware logs `# OLED init failed` and continues logging normally.
+```
+[yellow]  Temp:23.1C Hum:57%
+[blue]    Room Air: GOOD
+[blue]    Mon 14 Apr 10:42
+[blue]    City: Stuttgart
+[blue]    Out: 5C, Cloudy
+```
+
+Status is abbreviated to keep the line uniform: `GOOD` / `MOD` / `POOR`.
+An interim rule-based status drives the display and the status LEDs until the
+ML classifier (Phase 6) is deployed. If no OLED is attached, the firmware logs
+`# OLED init failed` and continues logging normally.
+
+## Network & weather (dev firmware)
+
+The dev firmware (`src/main.cpp`) connects to WiFi and shows a connected
+weather-station screen on the OLED (the `display_update_env()` layout above).
+
+- **WiFi** — 2.4 GHz only (ESP32-C3 has no 5 GHz radio), non-blocking. The
+  sampling/CSV loop runs regardless of connection state.
+- **Time** — SNTP with the `Europe/Berlin` TZ (`CET-1CEST,M3.5.0,M10.5.0/3`),
+  auto DST. Stuttgart local time.
+- **Weather** — OpenWeatherMap "current weather" for `Stuttgart,DE` (metric),
+  fetched every 15 min over HTTPS.
+- **Fail-safe** — if WiFi or the API is unavailable, the affected lines show
+  `--` (e.g. `-- -- --- --:--`, `--C --`). CSV logging is never affected.
+
+**Setup:** copy the secrets template and fill in your values (git-ignored):
+
+```powershell
+cd firmware
+copy include\secrets.example.h include\secrets.h
+# edit include\secrets.h: WIFI_SSID, WIFI_PASSWORD, OWM_API_KEY
+```
+
+The data-collection firmware (`raw_data_collection.cpp`) does **not** include
+`net.h` and stays lean (no WiFi / TLS). See the switching note in that file.
 
 ## Quick start
 

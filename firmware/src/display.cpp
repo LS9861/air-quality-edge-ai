@@ -46,7 +46,7 @@ const char *display_status_text(AirStatus status)
     case AIR_GOOD:
         return "GOOD";
     case AIR_MODERATE:
-        return "MODERATE";
+        return "MOD";
     case AIR_POOR:
         return "POOR";
     default:
@@ -115,6 +115,84 @@ void display_update(float temp_c, float hum_pct, int mq135_raw,
     oled.print("Up:");
     oled.print(millis() / 1000);
     oled.print("s");
+
+    oled.display();
+}
+
+// Connected weather-station layout for the dev firmware.
+// Yellow band (pages 0-1): big temp + humidity.
+// Blue area: air status, local date/time, outdoor weather.
+void display_update_env(float temp_c, float hum_pct, AirStatus status,
+                        const DisplayEnv &env)
+{
+    if (!oled_ok)
+        return;
+
+    oled.clearDisplay();
+    oled.setTextColor(SSD1306_WHITE);
+
+    // ---- YELLOW band (top 16 px): one size-1 line, Temp + Hum together ----
+    // Keep <= 21 chars (6px each) so it fits 128px. Compact spacing.
+    oled.setTextSize(1);
+    oled.setCursor(0, 0);
+    if (temp_c <= DHT_ERROR_VALUE / 2)
+    {
+        oled.print("Temp:--.-C Hum:--%");
+    }
+    else
+    {
+        oled.print("Temp:");
+        oled.print(temp_c, 1);
+        oled.print("C Hum:");
+        oled.print(hum_pct, 0);
+        oled.print("%");
+    }
+
+    // ---- BLUE area (y >= 16): 4 lines at 12-px pitch (y=18,30,42,54) ----
+
+    oled.setCursor(0, 18);
+    oled.print("Room Air: ");
+    oled.print(display_status_text(status));
+
+    oled.setCursor(0, 30);
+    if (env.time_valid)
+    {
+        static const char *MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+        int m = (env.month >= 0 && env.month <= 11) ? env.month : 0;
+        oled.print(env.weekday);
+        oled.print(' ');
+        oled.print(env.day);
+        oled.print(' ');
+        oled.print(MONTHS[m]);
+        oled.print(' ');
+        if (env.hour < 10) oled.print('0');
+        oled.print(env.hour);
+        oled.print(':');
+        if (env.minute < 10) oled.print('0');
+        oled.print(env.minute);
+    }
+    else
+    {
+        oled.print("-- -- --- --:--");
+    }
+
+    oled.setCursor(0, 42);
+    oled.print("City: ");
+    oled.print(env.city);
+
+    oled.setCursor(0, 54);
+    if (env.weather_valid)
+    {
+        oled.print("Out: ");
+        oled.print(env.weather_temp, 0);
+        oled.print("C, ");
+        oled.print(env.condition);
+    }
+    else
+    {
+        oled.print("Out: --C, --");
+    }
 
     oled.display();
 }

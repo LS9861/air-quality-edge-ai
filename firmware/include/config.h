@@ -30,6 +30,25 @@
 #define OLED_HEIGHT 64
 #define OLED_ADDR 0x3C // try 0x3D if the screen stays blank
 
+// ---------- Network / Weather (dev firmware only) ----------
+// Credentials live in include/secrets.h (git-ignored; copy secrets.example.h).
+// This firmware is WiFi-only via net.h/net.cpp, used exclusively by main.cpp.
+#define NTP_SERVER_1 "pool.ntp.org"
+#define NTP_SERVER_2 "time.nist.gov"
+#define TZ_INFO "CET-1CEST,M3.5.0,M10.5.0/3" // Europe/Berlin (Stuttgart), auto DST
+#define OWM_CITY "Stuttgart,DE"
+#define OWM_UNITS "metric"            // metric => Celsius
+#define OWM_FETCH_INTERVAL_MS 900000UL // 15 min
+#define NET_UPDATE_INTERVAL_MS 1000UL  // display clock refresh (~1 s)
+
+// OWM transport: 1 = HTTP (plain), 0 = HTTPS (TLS, default).
+// NOTE: on this Arduino-ESP32 core, HTTPClient links WiFiClientSecure either
+// way, so switching to HTTP does NOT reduce flash (~957 KB either way).
+// Keep HTTPS (0) for an encrypted API key; use HTTP (1) only to avoid
+// cert setup on very old setups. Flash headroom is handled by the partition
+// table instead (see partitions.csv).
+#define OWM_USE_HTTP 0
+
 // ---------- Sampling Parameters ----------
 #define SERIAL_BAUD 115200
 #define PMS_BAUD 9600
