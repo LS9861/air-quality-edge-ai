@@ -19,7 +19,7 @@ and (eventually) runs an on-device ML classifier to detect air quality states:
 | OLED SSD1306 | I2C    | SDA `GPIO8`, SCL `GPIO9` | 128x64, addr `0x3C`, **3.3 V only** |
 | Status LEDs | GPIO    | `GPIO4/5/6`              | GOOD / MODERATE / POOR (Phase 6) |
 
-<img width="4616" height="4662" alt="airqualitymonitor_CircuitDiagram" src="https://github.com/user-attachments/assets/6c836e28-2a4b-4dea-92ce-070d799a86dc" />
+<img width="600" alt="air quality monitor circuit diagram" src="docs/airqualitymonitor_CircuitDiagram.png" />
 
 Board: **ESP32-C3-DevKitM-1** (RISC-V, native USB-CDC).
 
