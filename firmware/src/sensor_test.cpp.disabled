@@ -1,0 +1,129 @@
+// ============================================================
+// FULL SENSOR TEST: DHT22 + OLED + MQ-135 + PMS5003  (standalone main)
+// ============================================================
+// Purpose: verify ALL FOUR peripherals together before recording.
+//
+//   - OLED    : display_init() runs I2C scan + splash; refreshed each loop.
+//   - DHT22   : read every 2 s -> temp/humidity.
+//   - MQ-135  : averaged analog read on GPIO0 (raw 0..4095).
+//   - PMS5003 : UART on GPIO20(RX)/GPIO21(TX), polled continuously.
+//               NOTE clone: mass fields (PM1/2.5/10) may read 0; the
+//               particle counts (n03..n100) carry the real signal.
+//
+// Serial output (one line per 2 s read):
+//   ms,temp_c,hum_pct,dht_status,mq135_raw,pm25_atm,pm10_atm,n03,aq,oled_ok
+// Plus every 10 s a '# PMS diag' line with frames_ok/bad.
+//
+// HOW TO RUN: only ONE active main in src/ (this file).
+//   pio run -t upload
+// ============================================================
+
+#include <Arduino.h>
+#include "config.h"
+#include "display.h"
+
+// Provided by sensors.cpp / pms5003.cpp
+void sensors_init();
+int sensors_read_mq135();
+bool sensors_read_dht(float &temp_c, float &humidity_pct);
+bool pms5003_poll();
+
+extern uint32_t pms_frames_ok;
+extern uint32_t pms_frames_bad;
+extern uint16_t pms_pm1_cf1, pms_pm25_cf1, pms_pm10_cf1;
+extern uint16_t pms_pm1_atm, pms_pm25_atm, pms_pm10_atm;
+extern uint16_t pms_n03, pms_n05, pms_n10, pms_n25, pms_n50, pms_n100;
+
+static bool s_oled_ok = false;
+static float s_temp = DHT_ERROR_VALUE;
+static float s_hum = 0.0f;
+static int s_mq = 0;
+
+void setup()
+{
+    Serial.begin(SERIAL_BAUD);
+    delay(1500); // native USB-CDC settle; do NOT block on !Serial
+
+    Serial.println();
+    Serial.println("# ===== FULL SENSOR TEST: DHT22 + OLED + MQ-135 + PMS5003 =====");
+    Serial.println("# DHT=GPIO" + String(PIN_DHT) + "  MQ=GPIO" + String(PIN_MQ135_ADC) +
+                   "  PMS RX=GPIO" + String(PIN_PMS_RX) + " TX=GPIO" + String(PIN_PMS_TX) +
+                   "  OLED SDA=GPIO" + String(PIN_OLED_SDA) + " SCL=GPIO" + String(PIN_OLED_SCL));
+
+    // PMS5003 UART
+    Serial1.begin(PMS_BAUD, SERIAL_8N1, PIN_PMS_RX, PIN_PMS_TX);
+
+    // OLED (also runs i2c_scan)
+    s_oled_ok = display_init();
+
+    sensors_init();   // DHT + ADC config
+    delay(2000);      // DHT22 warm-up
+
+    Serial.println("# oled_ok=" + String(s_oled_ok ? 1 : 0));
+    Serial.println("ms,temp_c,hum_pct,dht_status,mq135_raw,pm25_atm,pm10_atm,n03,aq,oled_ok");
+}
+
+void loop()
+{
+    // Poll PMS every iteration (non-blocking) so no UART bytes are lost.
+    pms5003_poll();
+
+    static unsigned long last = 0;
+    if (millis() - last < READ_INTERVAL_MS) return;
+    last = millis();
+
+    float t = DHT_ERROR_VALUE, h = DHT_ERROR_VALUE;
+    bool dht_ok = sensors_read_dht(t, h);
+    s_temp = t;
+    s_hum = h;
+
+    s_mq = sensors_read_mq135();
+
+    // Status from all wired channels (MQ + real PM2.5 + n0.3).
+    AirStatus status = display_compute_status(s_mq, pms_pm25_atm, pms_n03);
+
+    // display_update(temp, hum, mq135, pm25, pm10, n03, status)
+    display_update(s_temp, s_hum, s_mq,
+                   pms_pm25_atm,
+                   pms_pm10_atm,
+                   pms_n03,
+                   status);
+
+    Serial.print(millis());
+    Serial.print(',');
+    Serial.print(s_temp, 2);
+    Serial.print(',');
+    Serial.print(s_hum, 2);
+    Serial.print(',');
+    Serial.print(dht_ok ? "OK" : "FAIL");
+    Serial.print(',');
+    Serial.print(s_mq);
+    Serial.print(',');
+    Serial.print(pms_pm25_atm);
+    Serial.print(',');
+    Serial.print(pms_pm10_atm);
+    Serial.print(',');
+    Serial.print(pms_n03);
+    Serial.print(',');
+    Serial.print(display_status_text(status));
+    Serial.print(',');
+    Serial.println(s_oled_ok ? 1 : 0);
+
+    // PMS diagnostic every 10 s (prefixed '#' so a logger ignores it)
+    static unsigned long lastDiag = 0;
+    if (millis() - lastDiag >= 10000UL)
+    {
+        lastDiag = millis();
+        Serial.print("# PMS diag frames_ok=");
+        Serial.print(pms_frames_ok);
+        Serial.print(" bad=");
+        Serial.print(pms_frames_bad);
+        Serial.print(" | CNT[0.3/0.5/1/2.5/5/10]=");
+        Serial.print(pms_n03);  Serial.print('/');
+        Serial.print(pms_n05);  Serial.print('/');
+        Serial.print(pms_n10);  Serial.print('/');
+        Serial.print(pms_n25);  Serial.print('/');
+        Serial.print(pms_n50);  Serial.print('/');
+        Serial.println(pms_n100);
+    }
+}

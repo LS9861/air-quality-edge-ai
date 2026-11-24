@@ -1,5 +1,19 @@
 # Air Quality Monitor — Wiring Guide
 
+This wiring is available in three formats:
+
+| Format | File | Best for |
+|--------|------|----------|
+| Plain text (this file) | `docs/WIRING.md` | Quick reference / copy-paste |
+| Printable drawn schematic | [`docs/WIRING.pdf`](WIRING.pdf) | Printing / sharing |
+| Schematic images | [`docs/schematics/*.png`](schematics/) | Inline viewing |
+
+Regenerate the PDF + PNGs after edits with:
+
+```bash
+python docs/make_wiring_pdf.py
+```
+
 Board: **ESP32-C3 DevKitM-1** (3.3 V logic; 5 V on the VIN/5V pin when USB-powered)
 
 > **Safety first**

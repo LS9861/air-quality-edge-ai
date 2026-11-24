@@ -28,7 +28,9 @@ Board: **ESP32-C3-DevKitM-1** (RISC-V, native USB-CDC).
 ```
 firmware/            PlatformIO project (C++)
   include/config.h   Pins, sampling params, CSV schema
-  src/main.cpp       Sampling loop + CSV serial output
+  src/main.cpp                 Dev firmware: sensors + OLED + WiFi/weather + LEDs
+  src/raw_data_collection.cpp  Collect firmware: sensors -> 16-col CSV only (no OLED/WiFi)
+  src/sensor_test.cpp          Bring-up harness (DHT22 + OLED + MQ-135 + PMS5003)
   src/sensors.cpp    MQ-135 + DHT22 drivers
   src/pms5003.cpp    PMS5003 UART parser (non-blocking state machine)
   src/display.cpp    SSD1306 OLED rendering + interim AQ status heuristic
@@ -38,8 +40,13 @@ firmware/            PlatformIO project (C++)
   partitions.csv     Custom partition table (~3 MB app slot for ML headroom)
   models/            Exported model headers (.gitkeep placeholder)
 
+> Only one `setup()`/`loop()` may be active at a time. To switch firmware,
+> rename the unwanted main to `*.cpp.disabled` (PlatformIO ignores it) and the
+> desired one to `*.cpp`. `.disabled` files are tracked in git.
+
 logger/              Host-side serial -> CSV recorder
-  logger.py          Prompts for scene label, writes data/raw/<scene>/
+  session_logger.py  Named-session recorder (e.g. "good1" -> data/raw/good/good_1_<ts>.csv)
+  logger.py          Older menu-based recorder (scene label -> data/raw/<scene>/)
   _bootcapture.py    Reset board + capture boot/serial output (diagnostic)
 
 data/
@@ -127,18 +134,45 @@ cd firmware
 
 ### Data logging
 
+Flash the **data-collection firmware** first (16-column raw schema), then run
+the named-session logger. Pass an optional session name; it is auto-detected
+along with the COM port, in any order.
+
 ```powershell
 pip install pyserial
-python logger/logger.py
-# Choose scene: good | moderate | poor
-# Records until Ctrl+C into data/raw/<scene>/<timestamp>.csv
+
+# Name a session -> data/raw/<class>/<name>_<timestamp>.csv
+python logger/session_logger.py good1        # -> data/raw/good/good_1_<ts>.csv
+python logger/session_logger.py moderate1    # -> data/raw/moderate/moderate_1_<ts>.csv
+python logger/session_logger.py poor1        # -> data/raw/poor/poor_1_<ts>.csv
+
+# No argument: prompts for the name, auto-detects the port
+python logger/session_logger.py
+
+# Explicit port (same result; order-independent)
+python logger/session_logger.py COM3 good1
 ```
+
+- The **first word must be a class** (`good` / `moderate` / `poor`) — it chooses
+  the training folder. The rest is a free label, so you can record many
+  sessions per class: `good1`, `good2`, `good3`, `moderate1`, ...
+- `good1` / `good 1` / `good-1` / `Good1` all resolve to `good` + `good_1`.
+- Press **Ctrl+C** to stop. The header is written immediately and rows are
+  flushed as they arrive, so even a short run leaves a valid CSV.
+- `#`-prefixed diagnostic lines are skipped; malformed rows are skipped and
+  reported (never silently dropped). Fragment-tolerant line reassembly.
+
+> The logger expects the **16-column** schema from `raw_data_collection`. The
+> development/bring-up firmware streams different columns and is not meant for
+> recording.
 
 ## Roadmap
 
 - [x] Sensor bring-up (MQ-135, DHT22, PMS5003) & 16-column raw CSV stream
-- [x] Multi-hour logger with per-scene folder labelling
 - [x] OLED (SSD1306) live display + status LEDs
+- [x] All-sensor bring-up verification (per-sensor + combined test firmware)
+- [x] Named-session logger (`good1`, `moderate1`, ... -> per-class folders)
+- [x] Multi-hour logger with per-scene folder labelling
 - [ ] Record GOOD / MODERATE / POOR datasets
 - [ ] Preprocessing + feature engineering (`ml/`)
 - [ ] Train 3-class classifier

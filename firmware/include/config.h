@@ -17,7 +17,16 @@
 #define PIN_DHT 10
 #define DHT_TYPE DHT22
 
-// Status LEDs (optional, for Phase 6)
+// ---------- Status LED (single pin, blink-rate encodes air quality) ----------
+// One LED toggles at a rate that reflects the air-quality state, so the
+// status is readable at a glance even when the OLED is out of view.
+//   GOOD      : steady ON (no blink)        -> calm
+//   MODERATE  : ~1 s period blink           -> attention
+//   POOR      : fast ~200 ms blink          -> urgent
+#define PIN_STATUS_LED 4
+
+// (Legacy) three-LED scheme pins - kept for reference; unused by the
+// single-pin blink indicator above.
 #define PIN_LED_GOOD 4
 #define PIN_LED_MODERATE 5
 #define PIN_LED_POOR 6

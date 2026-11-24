@@ -56,7 +56,7 @@ time of day**. That's ~4 h/class — enough for a first model.
 
 ```
 ### <YYYY-MM-DD HH:MM>  —  <good|moderate|poor>
-- File:            air_quality_<scene>_<timestamp>.csv
+- File:            good_1_<timestamp>.csv   (from  python logger/session_logger.py good1)
 - Duration:        __ min
 - Time of day:     morning / afternoon / evening / night
 - Room:            e.g. living room

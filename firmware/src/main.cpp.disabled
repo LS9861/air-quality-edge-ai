@@ -2,6 +2,7 @@
 #include "config.h"
 #include "display.h"
 #include "net.h"
+#include "status_led.h"
 
 // Declarations from other .cpp files
 bool pms5003_poll();
@@ -40,10 +41,8 @@ void setup()
     // MQ-135 + DHT22
     sensors_init();
 
-    // Status LEDs
-    pinMode(PIN_LED_GOOD, OUTPUT);
-    pinMode(PIN_LED_MODERATE, OUTPUT);
-    pinMode(PIN_LED_POOR, OUTPUT);
+        // Status LED (single pin, blink-rate encodes air quality)
+    status_led_init();
 
         // OLED display
     display_init();
@@ -57,6 +56,9 @@ void setup()
 
 void loop()
 {
+        // 0. Drive the status LED blink pattern (non-blocking, every loop)
+    status_led_update();
+
         // 1. Poll PMS5003 continuously (non-blocking)
     pms5003_poll();
 
@@ -116,11 +118,10 @@ void loop()
             env.weather_temp = wx.temp_c;
             env.condition = wx.condition.c_str();
         }
-        display_update_env(s_temp, s_hum, status, env);
+                display_update_env(s_temp, s_hum, status, env);
 
-        digitalWrite(PIN_LED_GOOD, status == AIR_GOOD ? HIGH : LOW);
-        digitalWrite(PIN_LED_MODERATE, status == AIR_MODERATE ? HIGH : LOW);
-        digitalWrite(PIN_LED_POOR, status == AIR_POOR ? HIGH : LOW);
+        // Update the single status LED blink pattern for this status.
+        status_led_set(status);
     }
 
         // 5. Periodic PMS5003 diagnostic (every 10 s).
